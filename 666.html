@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>圣诞快乐jerrie家人们</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #000c18; /* 深邃夜空 */
+            overflow: hidden; /* 禁止滚动 */
+            width: 100vw;
+            height: 100vh;
+            touch-action: none; /* 优化触控体验 */
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* 底部提示文字样式 */
+        #tip {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            pointer-events: none;
+            letter-spacing: 1px;
+            animation: fadeTip 3s infinite ease-in-out;
+        }
+        @keyframes fadeTip {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="christmasCanvas"></canvas>
+    <div id="tip">✨ 点击屏幕 绽放烟花 ✨</div>
+
+    <script>
+        const canvas = document.getElementById('christmasCanvas');
+        const ctx = canvas.getContext('2d');
+        // 离屏Canvas用于缓存背景，提升手机性能
+        const bgCanvas = document.createElement('canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+
+        let w, h;
+        let particles = [];
+        let snows = [];
+        let lights = [];
+        let treeScale = 1;
+        let fontSize = 20; // 文字大小全局变量
+
+        // 绘图坐标变量
+        let tx, ty, tangle;
+
+        // --- 初始化适配 ---
+        function resize() {
+            w = window.innerWidth;
+            h = window.innerHeight;
+            
+            // 高清屏适配
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            ctx.scale(dpr, dpr);
+            
+            bgCanvas.width = w * dpr;
+            bgCanvas.height = h * dpr;
+            bgCtx.scale(dpr, dpr);
+
+            // 1. 树的大小逻辑（保持不变，你觉得这个刚好）
+            // 依据屏幕宽高，取较小值来定比例，保证树不溢出
+            treeScale = Math.min(w / 400, h / 750);
+
+            // 2. 字的大小逻辑（已修改）
+            // 之前的 w/9 导致字太大，现在改为 w/13，并且设置最大上限32px
+            // 这样在小屏手机看刚好，大屏手机也不会巨型
+            fontSize = Math.min(w / 12, 32);
+
+            drawStaticScene();
+        }
+
+        // --- 绘图逻辑 ---
+        function t_moveTo(x, y) { tx = x; ty = y; }
+        function t_right(deg) { tangle += deg; }
+        function t_forward(len, context, draw=true) {
+            const rad = tangle * Math.PI / 180;
+            const newX = tx + Math.cos(rad) * len;
+            const newY = ty - Math.sin(rad) * len;
+            if (draw) {
+                context.beginPath();
+                context.moveTo(tx, ty);
+                context.lineTo(newX, newY);
+                context.stroke();
+            }
+            tx = newX; ty = newY;
+        }
+
+        function tree(d, s) {
+            if (d <= 0) return;
+            t_forward(s, bgCtx);
+            tree(d - 1, s * 0.82);
+            t_right(120);
+            tree(d - 3, s * 0.5);
+            
+            // 几率记录彩灯位置
+            if (d > 2 && Math.random() < 0.2) {
+                lights.push({
+                    x: tx, y: ty,
+                    color: Math.random()>0.7 ? '#ffffff' : (Math.random()>0.5 ? '#ff4757' : '#eccc68'),
+                    offset: Math.random() * 10
+                });
+            }
+
+            t_right(120);
+            tree(d - 3, s * 0.5);
+            t_right(120);
+            t_forward(-s, bgCtx, false);
+        }
+
+        function drawStaticScene() {
+            lights = [];
+            bgCtx.clearRect(0, 0, w, h);
+
+            // 1. 绘制文字 (位置：屏幕上方 12%)
+            // 注意：这里只画阴影，发光字在动画循环里画
+            bgCtx.font = `bold ${fontSize}px "Microsoft YaHei", sans-serif`;
+            bgCtx.textAlign = 'center';
+            bgCtx.textBaseline = 'middle';
+            bgCtx.fillStyle = '#ff6b81';
+            bgCtx.fillText("圣诞快乐元老局", w / 2, h * 0.12);
+
+            // 2. 绘制树
+            // 位置：屏幕下方留出一点空间
+            const startX = w / 2;
+            const startY = h * 0.85; 
+            const stepSize = 90 * treeScale; 
+
+            tx = startX; ty = startY; tangle = 90;
+            
+            bgCtx.lineCap = 'round';
+            bgCtx.lineWidth = 3 * treeScale;
+            bgCtx.strokeStyle = '#2f3640'; // 树干颜色
+            
+            // 开始画这棵树，内部会把彩灯位置存进 lights 数组
+            bgCtx.strokeStyle = '#006400';
+            tree(12, stepSize);
+
+            // 3. 绘制树顶星星
+            const topY = startY - (stepSize * 4.6); // 估算树顶高度
+            bgCtx.save();
+            bgCtx.translate(startX, topY);
+            bgCtx.scale(treeScale, treeScale);
+            bgCtx.beginPath();
+            bgCtx.fillStyle = '#f1c40f';
+            bgCtx.shadowColor = '#f39c12';
+            bgCtx.shadowBlur = 15;
+            // 画五角星的数学路径
+            for(let i=0; i<5; i++){
+                bgCtx.lineTo(Math.cos((18+i*72)/180*Math.PI)*20, -Math.sin((18+i*72)/180*Math.PI)*20);
+                bgCtx.lineTo(Math.cos((54+i*72)/180*Math.PI)*8, -Math.sin((54+i*72)/180*Math.PI)*8);
+            }
+            bgCtx.fill();
+            bgCtx.restore();
+
+            // 4. 绘制雪人 (左右护法)
+            drawSnowMan(startX - 80 * treeScale, startY + 15, 0.6 * treeScale);
+            drawSnowMan(startX + 80 * treeScale, startY + 15, 0.5 * treeScale);
+
+            // 5. 初始化雪花
+            snows = Array.from({length: 80}, () => ({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                r: Math.random() * 2 + 0.5,
+                v: Math.random() * 1.5 + 0.5
+            }));
+        }
+
+        function drawSnowMan(x, y, s) {
+            bgCtx.save();
+            bgCtx.translate(x, y);
+            bgCtx.scale(s, s);
+            bgCtx.shadowBlur = 0;
+            // 身体
+            bgCtx.fillStyle = '#ecf0f1';
+            bgCtx.beginPath(); bgCtx.arc(0, 0, 25, 0, Math.PI*2); bgCtx.fill();
+            bgCtx.beginPath(); bgCtx.arc(0, -35, 18, 0, Math.PI*2); bgCtx.fill();
+            // 纽扣
+            bgCtx.fillStyle = '#e74c3c';
+            bgCtx.beginPath(); bgCtx.arc(0, -10, 3, 0, Math.PI*2); bgCtx.fill();
+            bgCtx.beginPath(); bgCtx.arc(0, 5, 3, 0, Math.PI*2); bgCtx.fill();
+            // 鼻子
+            bgCtx.fillStyle = '#e67e22';
+            bgCtx.beginPath(); bgCtx.moveTo(0,-35); bgCtx.lineTo(12,-30); bgCtx.lineTo(0,-25); bgCtx.fill();
+            bgCtx.restore();
+        }
+
+        // --- 动画循环 ---
+        function animate(now) {
+            ctx.clearRect(0, 0, w, h);
+            ctx.drawImage(bgCanvas, 0, 0, w, h); // 绘制静态背景图
+
+            // 1. 绘制呼吸灯效果的细文字
+            ctx.font = `bold ${fontSize}px "Microsoft YaHei", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const glow = Math.abs(Math.sin(now * 0.0015));
+            ctx.shadowColor = '#ff4757';
+            ctx.shadowBlur = 15 * glow; 
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + glow * 0.3})`;
+            ctx.fillText("圣诞快乐茜茜公主！", w / 2, h * 0.12);
+            ctx.shadowBlur = 0;
+
+            // 2. 绘制树上的闪烁彩灯
+            lights.forEach(l => {
+                const alpha = Math.abs(Math.sin(now * 0.002 + l.offset));
+                ctx.beginPath();
+                ctx.arc(l.x, l.y, 4 * treeScale, 0, Math.PI*2); // 灯大小随树缩放
+                ctx.fillStyle = l.color;
+                ctx.globalAlpha = alpha;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // 3. 绘制雪花
+            ctx.fillStyle = "rgba(255,255,255,0.8)";
+            snows.forEach(s => {
+                s.y += s.v;
+                // 让雪花左右轻微飘动
+                s.x += Math.sin(now*0.001 + s.y*0.02) * 0.4;
+                // 循环落下
+                if (s.y > h) { s.y = -5; s.x = Math.random() * w; }
+                
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // 4. 绘制烟花粒子
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.06; // 重力模拟
+                p.life -= 0.015; // 消失速度
+                
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- 交互系统 ---
+        function bang(x, y) {
+            // 震动反馈 (支持的手机)
+            if(navigator.vibrate) navigator.vibrate(10);
+            
+            // 创造烟花粒子
+            const color = `hsl(${Math.random()*360}, 100%, 75%)`; // 随机明亮颜色
+            for(let i=0; i<25; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 2;
+                particles.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: color,
+                    life: 1
+                });
+            }
+        }
+
+        // 绑定事件：同时支持点击和触摸
+        window.addEventListener('resize', resize);
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 防止默认缩放
+            for(let i=0; i<e.changedTouches.length; i++) {
+                bang(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('mousedown', (e) => {
+            bang(e.clientX, e.clientY);
+        });
+
+        // 启动！
+        resize();
+        animate(0);
+
+    </script>
+</body>
+</html>
